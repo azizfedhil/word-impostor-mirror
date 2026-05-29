@@ -55,6 +55,120 @@ const ChkobbaLogic = {
         return d;
     },
 
+    /** Setup phases: deck_shuffled → cut → reveal → accept → initial_deal_complete */
+    SETUP_PHASES: {
+        SHUFFLED: 'deck_shuffled',
+        CUT: 'deck_cut',
+        REVEALED: 'starter_card_revealed',
+        ACCEPTED: 'starter_card_accepted',
+        DEAL_COMPLETE: 'initial_deal_complete'
+    },
+
+    /**
+     * New game state with traditional opening (no table/hand deal yet).
+     */
+    createNewGameState: function(playerDefs, options = {}) {
+        const deck = this.createDeck();
+        const n = playerDefs.length;
+        const dealerIndex = 0;
+        const cutterIndex = n > 1 ? 1 : 0;
+
+        return {
+            deck,
+            table: [],
+            players: playerDefs.map((p, idx) => ({
+                id: p.id,
+                name: p.name,
+                team: p.team ?? null,
+                hand: [],
+                captured: [],
+                chkobbas: 0,
+                totalScore: p.totalScore || 0
+            })),
+            teams: options.teams || null,
+            dealerIndex,
+            cutterIndex,
+            cutIndex: null,
+            starterCard: null,
+            setupPhase: this.SETUP_PHASES.SHUFFLED,
+            turnIndex: dealerIndex,
+            lastCaptureId: null,
+            round: options.round || 1,
+            phase: 'setup',
+            targetScore: options.targetScore || 21,
+            mode: options.mode || '1v1',
+            tournament: !!options.tournament,
+            log: 'الكومة مخلوطة — وقت القصّة.'
+        };
+    },
+
+    isSetupPhase: function(state) {
+        return state?.phase === 'setup' && state.setupPhase !== this.SETUP_PHASES.DEAL_COMPLETE;
+    },
+
+    getCutter: function(state) {
+        return state.players[state.cutterIndex] || null;
+    },
+
+    getDealer: function(state) {
+        return state.players[state.dealerIndex] || null;
+    },
+
+    /** Cutter splits the deck; reveals one card at the cut. */
+    performDeckCut: function(state, cutIndex) {
+        if (state.setupPhase !== this.SETUP_PHASES.SHUFFLED) return false;
+        if (state.deck.length < 2) return false;
+
+        const idx = Math.max(1, Math.min(state.deck.length - 1, cutIndex));
+        state.setupPhase = this.SETUP_PHASES.CUT;
+        state.cutIndex = idx;
+        state.starterCard = state.deck.splice(idx, 1)[0];
+        state.setupPhase = this.SETUP_PHASES.REVEALED;
+        state.log = 'الكارطة الأولى طلعت.';
+        return true;
+    },
+
+    /** Cutter keeps revealed card; dealer gives two more, then normal deal. */
+    acceptStarterCard: function(state) {
+        if (state.setupPhase !== this.SETUP_PHASES.REVEALED || !state.starterCard) return false;
+
+        const cutter = this.getCutter(state);
+        if (!cutter) return false;
+
+        state.setupPhase = this.SETUP_PHASES.ACCEPTED;
+        cutter.hand.push(state.starterCard);
+        state.starterCard = null;
+
+        if (state.deck.length >= 2) {
+            cutter.hand.push(state.deck.pop(), state.deck.pop());
+        }
+
+        return this.finishInitialDeal(state);
+    },
+
+    finishInitialDeal: function(state) {
+        if (state.deck.length < 4) return false;
+
+        state.table = [
+            state.deck.pop(),
+            state.deck.pop(),
+            state.deck.pop(),
+            state.deck.pop()
+        ];
+
+        state.players.forEach(p => {
+            while (p.hand.length < 3 && state.deck.length > 0) {
+                p.hand.push(state.deck.pop());
+            }
+        });
+
+        state.setupPhase = this.SETUP_PHASES.DEAL_COMPLETE;
+        state.phase = 'playing';
+        state.turnIndex = state.dealerIndex;
+        state.log = 'بدا الطرح، بالتوفيق!';
+        return true;
+    },
+
     /**
      * Centralized Asset Mapping
      */

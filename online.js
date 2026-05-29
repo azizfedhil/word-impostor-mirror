@@ -639,6 +639,26 @@ function _resetChkobbaPlaySession() {
     });
     document.getElementById('chkobba-table')?.classList.remove('is-drop-target');
     document.getElementById('chkobba-my-capture-pile')?.classList.remove('is-drop-target');
+    document.getElementById('chkobba-capture-ready-bar')?.remove();
+}
+
+function _hideChkobbaCaptureReadyBar() {
+    document.getElementById('chkobba-capture-ready-bar')?.remove();
+}
+
+function _showChkobbaCaptureReadyBar() {
+    _hideChkobbaCaptureReadyBar();
+    const wrap = document.querySelector('.chkobba-table-wrap');
+    if (!wrap) return;
+    const bar = document.createElement('div');
+    bar.id = 'chkobba-capture-ready-bar';
+    bar.className = 'chkobba-capture-ready-bar';
+    bar.innerHTML = `
+        <p>اختارتو الكوارط — أكّدو الماكلة</p>
+        <button type="button" class="primary-btn" id="chkobba-confirm-capture-btn">✅ ماكّل الكوارط</button>
+    `;
+    bar.querySelector('#chkobba-confirm-capture-btn').onclick = () => _commitChkobbaCapture();
+    wrap.appendChild(bar);
 }
 
 function _prefersReducedMotion() {
@@ -730,12 +750,19 @@ function _armChkobbaHandCard(cardEl) {
 function _onChkobbaTableCardTap(tableCardEl) {
     const ctx = _getChkobbaPlayContext();
     if (!ctx || !_chkobbaPlaySession) return;
-    if (_chkobbaPlaySession.phase === 'commitCapture') return;
 
     const { playedCard, selectedTableIds } = _chkobbaPlaySession;
     const cardId = tableCardEl.dataset.cardId;
     const captures = ctx.logic.getValidCaptures(playedCard, ctx.state.table);
     if (!captures.length) return;
+
+    // Allow editing selection after a full match is ready (no floating stack on body).
+    if (_chkobbaPlaySession.phase === 'readyCapture') {
+        _chkobbaPlaySession.phase = 'selecting';
+        delete _chkobbaPlaySession.captureSet;
+        document.getElementById('chkobba-my-capture-pile')?.classList.remove('is-drop-target');
+        _hideChkobbaCaptureReadyBar();
+    }
 
     if (selectedTableIds.has(cardId)) {
         selectedTableIds.delete(cardId);
@@ -754,10 +781,10 @@ function _onChkobbaTableCardTap(tableCardEl) {
 
     const match = ctx.logic.findMatchingCapture(playedCard, ctx.state.table, selectedTableIds);
     if (match) {
-        _chkobbaPlaySession.phase = 'commitCapture';
+        _chkobbaPlaySession.phase = 'readyCapture';
         _chkobbaPlaySession.captureSet = match;
         document.getElementById('chkobba-my-capture-pile')?.classList.add('is-drop-target');
-        _buildChkobbaCaptureStack();
+        _showChkobbaCaptureReadyBar();
     }
 }
 
@@ -775,27 +802,6 @@ function _refreshChkobbaCaptureHighlights() {
         if (selectedTableIds.has(id)) el.classList.add('is-selected');
         else if (candidateIds.has(id)) el.classList.add('is-capture-candidate');
     });
-}
-
-function _buildChkobbaCaptureStack() {
-    _chkobbaPlaySession?.stackEl?.remove();
-    const ctx = _getChkobbaPlayContext();
-    if (!ctx || !_chkobbaPlaySession?.captureSet) return;
-
-    const stack = document.createElement('div');
-    stack.className = 'chkobba-capture-stack';
-    const cards = [_chkobbaPlaySession.playedCard, ..._chkobbaPlaySession.captureSet];
-    cards.forEach((card, i) => {
-        const mini = document.createElement('div');
-        mini.className = 'chkobba-capture-stack-card';
-        mini.style.setProperty('--stack-i', String(i));
-        const img = document.createElement('img');
-        _bindChkobbaCardImg(img, card);
-        mini.appendChild(img);
-        stack.appendChild(mini);
-    });
-    document.body.appendChild(stack);
-    _chkobbaPlaySession.stackEl = stack;
 }
 
 function _ensureChkobbaTableListeners() {
@@ -821,7 +827,7 @@ function _ensureChkobbaTableListeners() {
     if (capPile && !_chkobbaCapturePileBound) {
         _chkobbaCapturePileBound = true;
         capPile.addEventListener('dragover', e => {
-            if (_chkobbaPlaySession?.phase === 'commitCapture') {
+            if (_chkobbaPlaySession?.phase === 'readyCapture') {
                 e.preventDefault();
                 capPile.classList.add('is-drop-target');
             }
@@ -832,7 +838,7 @@ function _ensureChkobbaTableListeners() {
             _commitChkobbaCapture();
         });
         capPile.addEventListener('click', () => {
-            if (_chkobbaPlaySession?.phase === 'commitCapture') _commitChkobbaCapture();
+            if (_chkobbaPlaySession?.phase === 'readyCapture') _commitChkobbaCapture();
         });
     }
 }
@@ -908,15 +914,9 @@ function _onChkobbaPointerMove(e) {
     ghost.style.top = `${e.clientY - offsetY}px`;
     ghost.style.setProperty('--ghost-tilt', `${Math.max(-12, Math.min(12, tilt))}deg`);
 
-    const stack = _chkobbaPlaySession?.stackEl;
-    if (stack && _chkobbaPlaySession.phase === 'commitCapture') {
-        stack.style.left = `${e.clientX}px`;
-        stack.style.top = `${e.clientY}px`;
-    }
-
     const cap = document.getElementById('chkobba-my-capture-pile');
     const under = document.elementFromPoint(e.clientX, e.clientY);
-    if (_chkobbaPlaySession?.phase === 'commitCapture' && cap && (cap === under || cap.contains(under))) {
+    if (_chkobbaPlaySession?.phase === 'readyCapture' && cap && (cap === under || cap.contains(under))) {
         cap.classList.add('is-drop-target');
     } else {
         cap?.classList.remove('is-drop-target');
@@ -947,7 +947,7 @@ async function _onChkobbaPointerUp(e, moved) {
         return;
     }
 
-    if (_chkobbaPlaySession?.phase === 'commitCapture') {
+    if (_chkobbaPlaySession?.phase === 'readyCapture') {
         if (target?.closest?.('#chkobba-my-capture-pile')) await _commitChkobbaCapture();
     } else if (_chkobbaPlaySession?.phase === 'armed') {
         if (target?.closest?.('#chkobba-table') && !target?.closest?.('.table-card')) {
@@ -3487,44 +3487,25 @@ async function _startOnlineChkobbaGame() {
     }
 
     const logic = window.ChkobbaLogic;
-    const deck = logic.createDeck();
 
-    const table = [deck.pop(), deck.pop(), deck.pop(), deck.pop()];
-
-    // Team assignment for 2v2
     let teams = null;
     if (mode === '2v2') {
-        teams = [[allP[0].id, allP[2].id], [allP[1].id, allP[3].id]]; // 1&3 vs 2&4
+        teams = [[allP[0].id, allP[2].id], [allP[1].id, allP[3].id]];
     }
 
-    // State initialization
-    const state = {
-        deck,
-        table,
-        players: allP.map((p, idx) => ({
+    const state = logic.createNewGameState(
+        allP.map((p, idx) => ({
             id: p.id,
             name: p.name,
-            team: mode === '2v2' ? (idx % 2 === 0 ? 0 : 1) : null,
-            hand: [],
-            captured: [],
-            chkobbas: 0,
-            totalScore: 0
+            team: mode === '2v2' ? (idx % 2 === 0 ? 0 : 1) : null
         })),
-        teams,
-        turnIndex: 0,
-        lastCaptureId: null,
-        round: 1,
-        phase: 'playing',
-        targetScore: cfg.chkobbaTarget || 21,
-        mode: mode,
-        tournament: !!cfg.chkobbaTournament,
-        log: 'بدا الطرح، بالتوفيق!'
-    };
-
-    // Deal first hand
-    state.players.forEach(p => {
-        p.hand = [state.deck.pop(), state.deck.pop(), state.deck.pop()];
-    });
+        {
+            teams,
+            targetScore: cfg.chkobbaTarget || 21,
+            mode,
+            tournament: !!cfg.chkobbaTournament
+        }
+    );
 
     try {
         await _update(_room.code, {
@@ -3562,6 +3543,82 @@ function _renderChkobbaPiles(state, me) {
         capEl.appendChild(capBadge);
     }
     capBadge.textContent = capCount;
+}
+
+function _renderChkobbaOpening(room, state) {
+    const panel = document.getElementById('chkobba-opening-panel');
+    const tableWrap = document.querySelector('.chkobba-table-wrap');
+    const handDock = document.querySelector('.chkobba-hand-dock');
+    if (!panel) return;
+
+    const logic = window.ChkobbaLogic;
+    const inSetup = logic.isSetupPhase(state);
+    panel.hidden = !inSetup;
+    tableWrap?.classList.toggle('is-setup-locked', inSetup);
+    handDock?.classList.toggle('is-setup-locked', inSetup);
+
+    if (!inSetup) {
+        panel.innerHTML = '';
+        return;
+    }
+
+    const dealer = logic.getDealer(state);
+    const cutter = logic.getCutter(state);
+    const amCutter = cutter?.id === _myId;
+    const amDealer = dealer?.id === _myId;
+    const sp = state.setupPhase;
+
+    if (sp === logic.SETUP_PHASES.SHUFFLED) {
+        panel.innerHTML = `
+            <h3>🂠 بداية الطرح</h3>
+            <p>الكومة مخلوطة. <strong>${_esc(dealer?.name || '')}</strong> التاجر، <strong>${_esc(cutter?.name || '')}</strong> يقصّ.</p>
+            ${amCutter ? '<button type="button" class="primary-btn" id="chkobba-cut-btn">✂️ قصّ الكومة</button>' : `<p>⏳ نستنا <strong>${_esc(cutter?.name || '')}</strong> يقصّ...</p>`}
+        `;
+    } else if (sp === logic.SETUP_PHASES.REVEALED && state.starterCard) {
+        panel.innerHTML = `
+            <h3>🃏 الكارطة الأولى</h3>
+            <p>${amCutter ? 'شوف الكارطة — إذا تعجبك، قبلها.' : `⏳ <strong>${_esc(cutter?.name || '')}</strong> يقرر...`}</p>
+            <div class="chkobba-opening-starter" id="chkobba-starter-slot"></div>
+            ${amCutter ? '<button type="button" class="primary-btn" id="chkobba-accept-starter-btn">✅ قبل الكارطة</button>' : ''}
+            ${amDealer && !amCutter ? '<p>إذا قبلها، التاجر يعطيه كارتين زيادة.</p>' : ''}
+        `;
+        panel.querySelector('#chkobba-starter-slot')?.appendChild(
+            _renderChkobbaCard(state.starterCard, { zone: 'table', index: 0, interactive: false })
+        );
+    } else {
+        panel.innerHTML = `<h3>⏳ تحضير الطرح</h3><p>${_esc(state.log || '')}</p>`;
+    }
+
+    panel.querySelector('#chkobba-cut-btn')?.addEventListener('click', () => _chkobbaPerformCut());
+    panel.querySelector('#chkobba-accept-starter-btn')?.addEventListener('click', () => _chkobbaAcceptStarter());
+}
+
+async function _chkobbaPerformCut() {
+    if (!_room?.word_obj) return;
+    const logic = window.ChkobbaLogic;
+    const state = _room.word_obj;
+    if (state.players[state.cutterIndex]?.id !== _myId) return;
+
+    const cutIndex = 5 + Math.floor(Math.random() * Math.max(1, state.deck.length - 10));
+
+    await _mutatePlayers(_room.code, (players, room) => {
+        const s = room.word_obj;
+        if (!logic.performDeckCut(s, cutIndex)) return null;
+        return players;
+    }, null, (room, players) => ({ word_obj: room.word_obj }));
+}
+
+async function _chkobbaAcceptStarter() {
+    if (!_room?.word_obj) return;
+    const logic = window.ChkobbaLogic;
+
+    await _mutatePlayers(_room.code, (players, room) => {
+        const s = room.word_obj;
+        if (!logic.acceptStarterCard(s)) return null;
+        return players;
+    }, null, (room, players) => ({ word_obj: room.word_obj }));
+
+    _chkobbaLastSnapshot = null;
 }
 
 function _maybeShowChkobbaAnnouncement(state) {
@@ -3659,7 +3716,12 @@ function _showOnlineChkobba(room) {
     const mode = state.mode || '1v1';
     const roomPlayerMeta = (_room?.players || []).reduce((m, p) => { m[p.id] = p; return m; }, {});
 
-    if (!isMyTurn) _resetChkobbaPlaySession();
+    if (!isMyTurn || state.phase === 'setup') _resetChkobbaPlaySession();
+
+    _renderChkobbaOpening(room, state);
+
+    const playLocked = window.ChkobbaLogic.isSetupPhase(state);
+    const canInteract = isMyTurn && !playLocked;
 
     const prevSnap = _chkobbaLastSnapshot;
     let dealCount = 0;
@@ -3731,7 +3793,7 @@ function _showOnlineChkobba(room) {
         tableCont.appendChild(_renderChkobbaCard(card, {
             zone: 'table',
             index: idx,
-            interactive: isMyTurn
+            interactive: canInteract
         }));
     });
 
@@ -3745,14 +3807,27 @@ function _showOnlineChkobba(room) {
                     zone: 'hand',
                     index: idx,
                     total,
-                    interactive: isMyTurn
+                    interactive: canInteract
                 }));
             });
         }
-        if (_chkobbaPlaySession) _refreshChkobbaCaptureHighlights();
+        if (_chkobbaPlaySession) {
+            const armedIdx = _chkobbaPlaySession.handIndex;
+            handCont.querySelectorAll('.hand-card').forEach((el, i) => {
+                if (i === armedIdx) el.classList.add('is-armed');
+            });
+            _refreshChkobbaCaptureHighlights();
+            if (_chkobbaPlaySession.phase === 'readyCapture') _showChkobbaCaptureReadyBar();
+        }
     };
 
     _renderChkobbaPiles(state, me);
+
+    if (playLocked) {
+        _renderChkobbaInfoPills(state, me);
+        _ensureChkobbaTableListeners();
+        return;
+    }
 
     if (shouldDealAnim) {
         _chkobbaSkipDealAnim = true;
@@ -3785,11 +3860,11 @@ function _showOnlineChkobba(room) {
 function _onChkobbaDragStart(e) {
     const cardEl = e.target.closest('.chkobba-card.hand-card');
     if (!cardEl) return;
-    if (_chkobbaPlaySession?.phase === 'commitCapture') {
+    if (_chkobbaPlaySession?.phase === 'readyCapture') {
         e.preventDefault();
         return;
     }
-    _armChkobbaHandCard(cardEl);
+    if (!_chkobbaPlaySession) _armChkobbaHandCard(cardEl);
     e.dataTransfer?.setData('text/plain', cardEl.dataset.index);
     cardEl.classList.add('is-dragging');
 }
@@ -3818,7 +3893,7 @@ async function _onChkobbaTableDrop(e) {
 
 async function _commitChkobbaCapture() {
     const ctx = _getChkobbaPlayContext();
-    if (!ctx || !_chkobbaPlaySession || _chkobbaPlaySession.phase !== 'commitCapture') return;
+    if (!ctx || !_chkobbaPlaySession || _chkobbaPlaySession.phase !== 'readyCapture') return;
 
     const handIndex = _chkobbaPlaySession.handIndex;
     const capturedIds = (_chkobbaPlaySession.captureSet || []).map(c => c.id);
@@ -4071,12 +4146,9 @@ function _renderActiveTournamentMatch(matchId) {
 
 function _initMatch(match, config) {
     const logic = window.ChkobbaLogic;
-    const deck = logic.createDeck();
-    match.deck = deck;
-    match.table = [deck.pop(), deck.pop(), deck.pop(), deck.pop()];
-    match.players.forEach(p => {
-        p.hand = [deck.pop(), deck.pop(), deck.pop()];
-    });
-    match.turnIndex = 0;
-    match.state = 'playing';
+    const gameState = logic.createNewGameState(
+        match.players.map(p => ({ id: p.id, name: p.name })),
+        { mode: config.chkobbaMode || '1v1', targetScore: config.chkobbaTarget || 21 }
+    );
+    Object.assign(match, gameState);
 }

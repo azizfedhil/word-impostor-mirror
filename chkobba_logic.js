@@ -71,6 +71,7 @@ const ChkobbaLogic = {
 
     /**
      * Map card to its asset path (assets/chkobba/{folder}/{filePrefix}-NN.webp)
+     * Folder/filePrefix table is the single source of truth for asset renames.
      */
     getCardAsset: function(card) {
         if (!card) return this.ASSETS.BACK;
@@ -81,6 +82,58 @@ const ChkobbaLogic = {
 
         const valStr = String(card.value).padStart(2, '0');
         return `assets/chkobba/${suitData.folder}/${suitData.filePrefix}-${valStr}.webp`;
+    },
+
+    resolveCardAsset: function(card) {
+        return this.getCardAsset(card);
+    },
+
+    bindCardImage: function(img, card) {
+        if (!img) return;
+        img.src = this.resolveCardAsset(card);
+        const back = this.ASSETS.BACK;
+        const point = this.ASSETS.POINT;
+        img.onerror = function () {
+            if (img.dataset.fallback === 'point') {
+                img.onerror = null;
+                return;
+            }
+            if (img.src !== back && !img.src.endsWith('Chkobba_dos.webp')) {
+                img.dataset.fallback = 'back';
+                img.src = back;
+                return;
+            }
+            if (img.src !== point) {
+                img.dataset.fallback = 'point';
+                img.src = point;
+                return;
+            }
+            img.onerror = null;
+        };
+    },
+
+    /**
+     * Returns a valid capture set matching selected table cards, or null.
+     */
+    findMatchingCapture: function(playedCard, tableCards, selectedTableIds) {
+        const ids = Array.isArray(selectedTableIds) ? selectedTableIds : [...selectedTableIds];
+        const selected = tableCards.filter(c => ids.includes(c.id));
+        const captures = this.getValidCaptures(playedCard, tableCards);
+        return captures.find(set =>
+            set.length === selected.length &&
+            set.every(c => selected.some(s => s.id === c.id))
+        ) || null;
+    },
+
+    /**
+     * True if selected table cards are a subset of at least one valid capture.
+     */
+    isSubsetOfSomeCapture: function(playedCard, tableCards, selectedTableIds) {
+        const ids = Array.isArray(selectedTableIds) ? selectedTableIds : [...selectedTableIds];
+        if (ids.length === 0) return true;
+        const selected = tableCards.filter(c => ids.includes(c.id));
+        const captures = this.getValidCaptures(playedCard, tableCards);
+        return captures.some(set => selected.every(s => set.some(c => c.id === s.id)));
     },
 
     /**

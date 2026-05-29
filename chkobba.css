@@ -155,18 +155,42 @@ body.game-chkobba header.app-header {
     font-size: 0.7rem;
 }
 
+.chkobba-player-pill.is-expanded {
+    border-radius: var(--radius-md);
+    min-width: 0;
+}
+
+.chkobba-player-pill.is-expanded .pill-main {
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
 .chkobba-player-pill .pill-details {
-    padding: 0 12px 10px;
+    padding: 10px 14px 12px;
     border-top: 1px solid var(--border-color);
+    background: var(--bg-color);
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
     animation: chkobbaPillExpand 0.28s var(--chkobba-ease) both;
+}
+
+.chkobba-player-pill .pill-details-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .chkobba-player-pill .detail-row {
     display: flex;
     justify-content: space-between;
-    font-size: 0.82rem;
-    padding: 4px 0;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 0.84rem;
+    padding: 2px 0;
     color: var(--text-muted);
+    font-weight: 700;
+}
+
+.chkobba-player-pill .detail-row span {
+    flex-shrink: 0;
 }
 
 .chkobba-player-pill .detail-row strong {
@@ -193,14 +217,14 @@ body.game-chkobba header.app-header {
     background: var(--surface-color);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
-    box-shadow: var(--chkobba-surface-shadow);
+    box-shadow: var(--chkobba-surface-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
     align-content: center;
-    gap: 8px;
-    padding: 48px 12px 12px;
+    gap: 10px;
+    padding: 52px 16px 16px;
     transition: box-shadow 0.3s var(--chkobba-ease);
 }
 
@@ -268,6 +292,20 @@ body.game-chkobba header.app-header {
     color: var(--text-main);
 }
 
+.chkobba-pile.capture-pile.is-drop-target {
+    box-shadow: 0 0 0 3px var(--primary-color), var(--chkobba-card-shadow);
+    transform: scale(1.05);
+}
+
+.chkobba-pile.deck-pile.is-dealing {
+    animation: chkobbaDeckPulse 0.5s var(--chkobba-ease);
+}
+
+@keyframes chkobbaDeckPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+
 /* Round info chips */
 .chkobba-info {
     display: flex;
@@ -288,8 +326,38 @@ body.game-chkobba header.app-header {
     color: var(--text-main);
     box-shadow: var(--chkobba-surface-shadow);
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-radius 0.22s var(--chkobba-ease), padding 0.22s var(--chkobba-ease);
+}
+
+.chkobba-info-pill.is-expanded {
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+}
+
+.chkobba-info-pill .info-pill-collapsed {
+    display: flex;
     align-items: center;
     gap: 6px;
+}
+
+.chkobba-info-pill .info-pill-label {
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.78rem;
+}
+
+.chkobba-info-pill .info-pill-hint {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.3;
+    max-width: 140px;
 }
 
 /* Cards */
@@ -309,11 +377,37 @@ body.game-chkobba header.app-header {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 10px;
+    border-radius: 12px;
     box-shadow: var(--chkobba-card-shadow);
     backface-visibility: hidden;
     pointer-events: none;
     border: 1px solid var(--border-color);
+}
+
+.chkobba-card.is-armed {
+    z-index: 50;
+    transform: translateY(-12px) scale(1.05);
+    box-shadow: 0 0 0 2px var(--primary-color), var(--chkobba-card-shadow);
+}
+
+.chkobba-card.is-capture-candidate {
+    box-shadow: 0 0 0 2px rgba(82, 140, 113, 0.35), var(--chkobba-card-shadow);
+}
+
+.chkobba-card.is-selected {
+    transform: translateY(-10px) scale(1.04) rotate(var(--rot, 0deg));
+    box-shadow: 0 0 0 2px var(--accent-color), var(--chkobba-card-shadow);
+    z-index: 40;
+}
+
+.chkobba-card.is-invalid {
+    animation: chkobbaCardShake 0.35s ease;
+}
+
+@keyframes chkobbaCardShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
 }
 
 .chkobba-card.table-card,
@@ -358,7 +452,60 @@ body.game-chkobba header.app-header {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 10px;
+    border-radius: 12px;
+}
+
+.chkobba-capture-stack {
+    position: fixed;
+    z-index: 10001;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    width: var(--chkobba-card-w);
+    height: var(--chkobba-card-h);
+}
+
+.chkobba-capture-stack-card {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    transform: translate(calc(var(--stack-i, 0) * 6px), calc(var(--stack-i, 0) * -6px)) rotate(calc(var(--stack-i, 0) * 3deg));
+}
+
+.chkobba-capture-stack-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: var(--chkobba-card-shadow);
+}
+
+.chkobba-deal-layer {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9998;
+}
+
+.chkobba-deal-flyer {
+    position: fixed;
+    width: var(--chkobba-card-w);
+    height: var(--chkobba-card-h);
+    transform: translate(-50%, -50%);
+    transition: left 0.45s var(--chkobba-ease), top 0.45s var(--chkobba-ease), opacity 0.2s ease;
+    z-index: 9999;
+    opacity: 1;
+}
+
+.chkobba-deal-flyer.is-flying {
+    opacity: 0.95;
+}
+
+.chkobba-deal-flyer img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 12px;
+    box-shadow: var(--chkobba-card-shadow);
 }
 
 /* Hand dock */
@@ -373,8 +520,8 @@ body.game-chkobba header.app-header {
     justify-content: center;
     align-items: flex-end;
     min-height: calc(var(--chkobba-card-h) + 20px);
-    padding: 8px 4px;
-    background: var(--surface-color);
+    padding: 10px 6px;
+    background: color-mix(in srgb, var(--surface-color) 88%, transparent);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     box-shadow: var(--chkobba-surface-shadow);
@@ -419,6 +566,14 @@ body.game-chkobba header.app-header {
 
 #lobby-settings-panel.chkobba-lobby-settings .counter-btn {
     border-radius: 50%;
+}
+
+#lobby-settings-panel.chkobba-lobby-settings .setting-row {
+    padding: 12px 0;
+}
+
+#lobby-settings-panel.chkobba-lobby-settings .dropdown-trigger {
+    min-height: 44px;
 }
 
 /* Tournament bracket in table slot */
